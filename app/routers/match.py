@@ -1,6 +1,8 @@
 import random
 import string
 import uuid
+from os.path import exists
+from pyexpat.errors import messages
 from uuid import UUID
 from typing import Any
 
@@ -13,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.dependencies.auth import get_user_by_token
-from app.models import User, get_db, GameMatches, GameMaps
+from app.models import User, get_db, GameMatches, GameMaps, States, BattleHistory
 
 router = APIRouter()
 oauth2_scheme = HTTPBearer()
@@ -349,7 +351,55 @@ async def buy_unit(user: User = Depends(get_user_by_token)):
     return STUB_RESPONSE_BY_UNIT
 
 @router.post("/match/send_player_action", response_model=PlayerActionResponse)
-async def send_player_action(user_data: PlayerActionRequest, user: User = Depends(get_user_by_token)):
+async def send_player_action(
+        user_data: PlayerActionRequest,
+        user: User = Depends(get_user_by_token),
+        db: Session = Depends(get_db)
+):
+
+    game_match: GameMatches = db.query(GameMatches).filter(
+        GameMatches.uuid == str(user_data.match_id)
+    ).first()
+
+    if game_match is None:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    if str(user.uuid) not in game_match.in_game_player:
+        raise HTTPException(status_code=403, detail="You are not in this match")
+
+    type_example = ['move', 'battle', 'deffence']
+
+    if user_data.action_type not in type_example:
+        raise HTTPException(status_code=500, detail="Action type not found")
+
+    if user_data.state is not None or user_data.target_state is not None:
+        state_check = db.query(States).filter(States.id == user_data.state_id or States.id == user_data.target_state).exists().scalar()
+        if not state_check:
+            raise HTTPException(status_code=500, detail="State not found")
+
+    # user_data.unit #todo сделать проверку на юнитов
+    # user_data.target_state
+    # todo сделать проверку, что игрок уже подходил
+
+    bh = BattleHistory(
+        match_uuid = game_match.uuid,
+        player_uuid = user.uuid,
+        #country_id =
+        current_year = game_match.current_year,
+        current_month = game_match.current_month,
+        turn = game_match.turn,
+        action_type = user_data.action_type,
+        state = user_data.state,
+        target_state = user_data.target_state,
+        unit = str(user_data.unit) or None,
+        target_unit = str(user_data.target_unit) or None,
+        # action_result =
+        # service_information =
+    )
+
+    return PlayerActionResponse(status=False, message='Match not found', error="")
+
+
     return STUB_RESPONSE_PLAYER
 
 STUB_RESPONSE_BY_UNIT = BuyUnitResponse(

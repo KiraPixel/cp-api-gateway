@@ -72,6 +72,7 @@ class GameMatches(Base):
     status = Column(TEXT, default='await_players')
     current_year = Column(Integer, default=0)
     current_month = Column(Integer, default=0)
+    turn = Column(Integer, default=0)
     in_game_player = Column(JSON)
     country = Column(JSON)
     states = Column(JSON)
@@ -81,11 +82,19 @@ class GameMatches(Base):
 class BattleHistory(Base):
     __tablename__ = 'battle_history'
     id = Column(Integer, primary_key=True)
-    match_uuid = Column(VARCHAR(36), ForeignKey('game_matches.uuid'))
-    country_code = Column(Integer, ForeignKey('country.id'))
-    status = Column(VARCHAR(10), default='new')
-    action_type = Column(VARCHAR(10), default='not_info')
-    action_result = Column(VARCHAR(10), default='not_info')
+    match_uuid = Column(VARCHAR(36), ForeignKey('game_matches.uuid'), nullable=False)
+    player_uuid = Column(VARCHAR(36), ForeignKey('users.uuid'), nullable=False)
+    country_id = Column(Integer, ForeignKey('country.id'))
+    current_year = Column(Integer, default=0)
+    current_month = Column(Integer, default=0)
+    turn = Column(Integer, default=0)
+    status = Column(VARCHAR(10), default='new', nullable=False)
+    action_type = Column(VARCHAR(10), default='not_info', nullable=False)
+    state = Column(Integer, ForeignKey('states.id'))
+    target_state = Column(Integer, ForeignKey('states.id'))
+    unit = Column(VARCHAR(36))
+    target_unit = Column(VARCHAR(36))
+    action_result = Column(VARCHAR(10), default='')
     service_information = Column(TEXT)
 
 
