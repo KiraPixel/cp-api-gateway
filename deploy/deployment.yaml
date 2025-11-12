@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cp-api-gateway
+  namespace: prd-cp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cp-api-gateway
+  template:
+    metadata:
+      labels:
+        app: cp-api-gateway
+    spec:
+      containers:
+        - name:  cp-api-gateway
+          image: ghcr.io/kirapixel/cp-api-gateway:20250905131759
+          envFrom:
+            - secretRef:
+                name: cp-project-secret

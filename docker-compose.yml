@@ -1,0 +1,12 @@
+services:
+  cashing:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/ref
+    environment:
+      SQLALCHEMY_DATABASE_URL: ${SQLALCHEMY_DATABASE_URL}
+    stdin_open: true
+    tty: true
+    restart: always
