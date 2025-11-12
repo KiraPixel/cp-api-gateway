@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from pydantic import BaseModel
 
 from app.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, PWD_CONTEXT
-from app.dependencies.auth import get_current_active_user, get_user_by_token, get_user_by_credentials
+from app.dependencies.auth import get_user_by_token, get_user_by_credentials
 from app.models import User, get_db
 from app.utils import now_unix_time
 
@@ -23,10 +23,12 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
-
 class UserOut(BaseModel):
     uuid: str
     name: str
+    # email: str
+    # first_login: str
+    # last_activity: str
 
     class Config:
         from_attributes = True
@@ -99,12 +101,6 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     user = await get_user_by_credentials(username=user_data.username, password=user_data.password, db=db)
     token = await create_access_token(user)
     return {"access_token": token, "token_type": "bearer"}
-
-
-@router.get("/check_health")
-async def health():
-    return {"status": "ok"}
-
 
 @router.get("/me", response_model=UserOut)
 async def read_users_me(user: User = Depends(get_user_by_token)):

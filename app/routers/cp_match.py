@@ -96,53 +96,27 @@ class ByUnitRequest(BaseModel):
 class NeedMatchIDRequest(BaseModel):
     match_id: UUID
 
-
-class MyMatchInfo(BaseModel):
-    match_id: UUID
-    map: str
-    status: str
-    game_code: str
-    is_owner: bool
-
-class MyMatchesResponse(BaseModel):
-    matches: list[MyMatchInfo] = []
-
-
 def generate_game_code() -> str:
     CHARS = string.ascii_uppercase + string.digits  # A-Z + 0-9
     return ''.join(random.choice(CHARS) for _ in range(8))
 
+def check_input_player_match(db: Session, match_uuid: str, user: User, need_player_join: bool=False) -> GameMatches:
+    game_match: GameMatches = db.query(GameMatches).filter(GameMatches.uuid == match_uuid).first()
 
-@router.post("/my/get_my_matches", response_model=MyMatchesResponse)
-async def get_my_matches(user: User = Depends(get_user_by_token), db: Session = Depends(get_db)):
+    if game_match is None:
+        raise HTTPException(status_code=404, detail="Match not found")
 
-    matches = db.query(GameMatches).filter(
-        GameMatches.in_game_player.contains([user.uuid])
-    ).all()
+    if need_player_join:
+        if user is None:
+            raise HTTPException(status_code=404, detail="Error code 10")
+        if game_match.owner != user.uuid:
+            if str(user.uuid) not in game_match.in_game_player:
+                raise HTTPException(status_code=403, detail="You are not in this match")
 
-    map_ids = {m.map for m in matches}
-    maps = db.query(GameMaps).filter(GameMaps.id.in_(map_ids)).all()
-    map_dict = {m.id: m for m in maps}
-
-    result = []
-    for match in matches:
-        map_obj = map_dict.get(match.map)
-        if not map_obj:
-            continue
-
-        result.append(MyMatchInfo(
-            match_id=UUID(match.uuid),
-            map=map_obj.name,
-            status=match.status,
-            game_code=match.game_code,
-            owner=UUID(match.owner),
-            is_owner=(match.owner == user.uuid)
-        ))
-
-    return MyMatchesResponse(matches=result)
+    return game_match
 
 
-@router.post("/match/create_match", response_model=PlayerCreateMatchResponse)
+@router.post("/create_match", response_model=PlayerCreateMatchResponse)
 async def create_match(user: User = Depends(get_user_by_token), db: Session = Depends(get_db)):
 
     max_attempts = 10
@@ -166,19 +140,14 @@ async def create_match(user: User = Depends(get_user_by_token), db: Session = De
         detail="Failed to create new match"
     )
 
-@router.post("/match/join_match", response_model=PlayerJoinMatchResponse)
+@router.post("/join_match", response_model=PlayerJoinMatchResponse)
 async def join_match(data: PlayerJoinMatchRequest, user: User = Depends(get_user_by_token), db: Session = Depends(get_db)):
 
-    game_match = db.query(GameMatches).filter(GameMatches.game_code == data.game_code).first()
-    if game_match is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Failed to join"
-        )
+    game_match = check_input_player_match(db=db, match_uuid=str(data.match_id), user=user, need_player_join=False)
 
     if not user.uuid in game_match.in_game_player:
-        map: GameMaps = db.query(GameMaps).filter(GameMaps.id == game_match.map).first()
-        if map.max_players == game_match.in_game_player.count():
+        game_map: GameMaps = db.query(GameMaps).filter(GameMaps.id == game_match.map).first()
+        if game_map.max_players == game_match.in_game_player.count():
             raise HTTPException(
                 status_code=400,
                 detail="Failed to join. Max players"
@@ -192,17 +161,13 @@ async def join_match(data: PlayerJoinMatchRequest, user: User = Depends(get_user
     return PlayerJoinMatchResponse(match_id=UUID(game_match.uuid))
 
 
-@router.post("/match/leave_from_match", response_model=PlayerActionResponse) #todo переделать response model
+@router.post("/leave_from_match", response_model=PlayerActionResponse) #todo переделать response model
 async def leave_from_match(data: NeedMatchIDRequest, user: User = Depends(get_user_by_token), db: Session = Depends(get_db)):
 
     game_match = db.query(GameMatches).filter(GameMatches.uuid == str(data.match_id)).first()
 
     try:
-        if game_match is None or not user.uuid in game_match.in_game_player:
-            return PlayerActionResponse(status=True, message="Match not found")
-
-        if game_match.status == 'stopped' or game_match.status == 'end':
-            return PlayerActionResponse(status=True, message="Match is stopped")
+        game_match = check_input_player_match(db=db, match_uuid=str(data.match_id), user=user, need_player_join=True)
 
         if game_match.owner == user.uuid:
             game_match.in_game_player = []
@@ -227,16 +192,13 @@ async def leave_from_match(data: NeedMatchIDRequest, user: User = Depends(get_us
         db.rollback()
         return PlayerActionResponse(status=False, message='Failed to exit', error=str(e))
 
-@router.post("/match/get_info", response_model=MatchInfo, responses={404: {"model": PlayerActionResponse}})
+@router.post("/get_info", response_model=MatchInfo, responses={404: {"model": PlayerActionResponse}})
 async def get_match_info(data: NeedMatchIDRequest, user: User = Depends(get_user_by_token), db: Session = Depends(get_db)):
 
     if data.match_id == "3fa85f64-5717-4562-b3fc-2c963f66afa6":
         return STUB_MATCH_INFO
 
-    game_match = db.query(GameMatches).filter(GameMatches.uuid == str(data.match_id)).first()
-
-    if game_match is None:
-        raise HTTPException(status_code=404, detail="Match not found")
+    game_match = check_input_player_match(db=db, match_uuid=str(data.match_id), user=user, need_player_join=False)
 
     map_obj = db.query(GameMaps).filter(GameMaps.id == game_match.map).first()
     if not map_obj:
@@ -269,7 +231,7 @@ async def get_match_info(data: NeedMatchIDRequest, user: User = Depends(get_user
     )
 
 
-@router.post("/match/get_details_info", response_model=DetailsMatchInfo)
+@router.post("/get_details_info", response_model=DetailsMatchInfo)
 async def get_match_details_info(
     data: NeedMatchIDRequest,
     user: User = Depends(get_user_by_token),
@@ -278,15 +240,7 @@ async def get_match_details_info(
     if data.match_id == UUID("3fa85f64-5717-4562-b3fc-2c963f66afa6"):
         return STUB_MATCH_INFO_DETAILS
 
-    game_match: GameMatches = db.query(GameMatches).filter(
-        GameMatches.uuid == str(data.match_id)
-    ).first()
-
-    if game_match is None:
-        raise HTTPException(status_code=404, detail="Match not found")
-
-    if str(user.uuid) not in game_match.in_game_player:
-        raise HTTPException(status_code=403, detail="You are not in this match")
+    game_match = check_input_player_match(db=db, match_uuid=str(data.match_id), user=user, need_player_join=True)
 
     map_obj = db.query(GameMaps).filter(GameMaps.id == game_match.map).first()
     if not map_obj:
@@ -346,40 +300,42 @@ async def get_match_details_info(
         units=units_dict or None
     )
 
-@router.post("/match/buy_unit", response_model=BuyUnitResponse)
+@router.post("/buy_unit", response_model=BuyUnitResponse, deprecated=True)
 async def buy_unit(user: User = Depends(get_user_by_token)):
     return STUB_RESPONSE_BY_UNIT
 
-@router.post("/match/send_player_action", response_model=PlayerActionResponse)
+@router.post("/send_player_action", response_model=PlayerActionResponse)
 async def send_player_action(
         user_data: PlayerActionRequest,
         user: User = Depends(get_user_by_token),
         db: Session = Depends(get_db)
 ):
 
-    game_match: GameMatches = db.query(GameMatches).filter(
-        GameMatches.uuid == str(user_data.match_id)
-    ).first()
+    if user_data.match_id == UUID("3fa85f64-5717-4562-b3fc-2c963f66afa6"):
+        return STUB_MATCH_INFO_DETAILS
 
-    if game_match is None:
-        raise HTTPException(status_code=404, detail="Match not found")
+    game_match = check_input_player_match(db=db, match_uuid=str(user_data.match_id), user=user, need_player_join=True)
 
-    if str(user.uuid) not in game_match.in_game_player:
-        raise HTTPException(status_code=403, detail="You are not in this match")
-
-    type_example = ['move', 'battle', 'deffence']
+    type_example = ['move', 'battle', 'defence']
 
     if user_data.action_type not in type_example:
         raise HTTPException(status_code=500, detail="Action type not found")
 
     if user_data.state is not None or user_data.target_state is not None:
-        state_check = db.query(States).filter(States.id == user_data.state_id or States.id == user_data.target_state).exists().scalar()
-        if not state_check:
-            raise HTTPException(status_code=500, detail="State not found")
+        if user_data.state != 0 or user_data.target_state != 0:
+            state_check = db.query(States).filter(
+                States.id.in_([user_data.state, user_data.target_state])
+            ).count() == 2
+            if not state_check:
+                raise HTTPException(status_code=500, detail="State not found")
+        else:
+            user_data.state = None
+            user_data.target_state = None
 
     # user_data.unit #todo сделать проверку на юнитов
     # user_data.target_state
     # todo сделать проверку, что игрок уже подходил
+
 
     bh = BattleHistory(
         match_uuid = game_match.uuid,
@@ -397,10 +353,9 @@ async def send_player_action(
         # service_information =
     )
 
-    return PlayerActionResponse(status=False, message='Match not found', error="")
-
-
-    return STUB_RESPONSE_PLAYER
+    db.add(bh)
+    db.commit()
+    return PlayerActionResponse(status=True, message="Action sent")
 
 STUB_RESPONSE_BY_UNIT = BuyUnitResponse(
     status=True,
