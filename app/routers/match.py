@@ -112,10 +112,8 @@ def generate_game_code() -> str:
 
 
 @router.post("/my/get_my_matches", response_model=MyMatchesResponse)
-async def get_my_matches(
-    user: User = Depends(get_user_by_token),
-    db: Session = Depends(get_db)
-):
+async def get_my_matches(user: User = Depends(get_user_by_token), db: Session = Depends(get_db)):
+
     matches = db.query(GameMatches).filter(
         GameMatches.in_game_player.contains([user.uuid])
     ).all()
@@ -136,7 +134,7 @@ async def get_my_matches(
             status=match.status,
             game_code=match.game_code,
             owner=UUID(match.owner),
-            is_owner=(match.owner == user.uuid),
+            is_owner=(match.owner == user.uuid)
         ))
 
     return MyMatchesResponse(matches=result)
@@ -144,6 +142,7 @@ async def get_my_matches(
 
 @router.post("/match/create_match", response_model=PlayerCreateMatchResponse)
 async def create_match(user: User = Depends(get_user_by_token), db: Session = Depends(get_db)):
+
     max_attempts = 10
 
     for _ in range(max_attempts):
@@ -167,6 +166,7 @@ async def create_match(user: User = Depends(get_user_by_token), db: Session = De
 
 @router.post("/match/join_match", response_model=PlayerJoinMatchResponse)
 async def join_match(data: PlayerJoinMatchRequest, user: User = Depends(get_user_by_token), db: Session = Depends(get_db)):
+
     game_match = db.query(GameMatches).filter(GameMatches.game_code == data.game_code).first()
     if game_match is None:
         raise HTTPException(
@@ -199,7 +199,7 @@ async def leave_from_match(data: NeedMatchIDRequest, user: User = Depends(get_us
         if game_match is None or not user.uuid in game_match.in_game_player:
             return PlayerActionResponse(status=True, message="Match not found")
 
-        if game_match.status is 'stopped':
+        if game_match.status == 'stopped' or game_match.status == 'end':
             return PlayerActionResponse(status=True, message="Match is stopped")
 
         if game_match.owner == user.uuid:
@@ -225,14 +225,16 @@ async def leave_from_match(data: NeedMatchIDRequest, user: User = Depends(get_us
         db.rollback()
         return PlayerActionResponse(status=False, message='Failed to exit', error=str(e))
 
-@router.post("/match/get_info", response_model=MatchInfo)
+@router.post("/match/get_info", response_model=MatchInfo, responses={404: {"model": PlayerActionResponse}})
 async def get_match_info(data: NeedMatchIDRequest, user: User = Depends(get_user_by_token), db: Session = Depends(get_db)):
+
     if data.match_id == "3fa85f64-5717-4562-b3fc-2c963f66afa6":
         return STUB_MATCH_INFO
 
-    game_match: GameMatches = db.query(GameMatches).filter(GameMatches.uuid == str(data.match_id)).first()
+    game_match = db.query(GameMatches).filter(GameMatches.uuid == str(data.match_id)).first()
+
     if game_match is None:
-        return PlayerActionResponse(status=True, message="Match not found")
+        raise HTTPException(status_code=404, detail="Match not found")
 
     map_obj = db.query(GameMaps).filter(GameMaps.id == game_match.map).first()
     if not map_obj:
@@ -278,7 +280,7 @@ async def get_match_details_info(
         GameMatches.uuid == str(data.match_id)
     ).first()
 
-    if not game_match:
+    if game_match is None:
         raise HTTPException(status_code=404, detail="Match not found")
 
     if str(user.uuid) not in game_match.in_game_player:

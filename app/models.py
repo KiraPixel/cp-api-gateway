@@ -31,18 +31,18 @@ class User(Base):
 class GameMaps(Base):
     __tablename__ = 'game_maps'
     id = Column(Integer, primary_key=True)
-    name = Column(TEXT)
-    max_players = Column(Integer)
-    country_list = Column(JSON)
-    available_states = Column(JSON)
+    name = Column(TEXT, nullable=False, default="")
+    max_players = Column(Integer, nullable=False, default=8)
+    country_list = Column(JSON, nullable=False, default=[])
+    available_states = Column(JSON, nullable=False, default=[])
 
 class States(Base):
     __tablename__ = 'states'
     id = Column(Integer, primary_key=True)
     name = Column(VARCHAR(6))
-    is_supply_point = Column(Boolean, default=False)
-    is_water = Column(Boolean, default=False)
-    neighbor = Column(JSON, default=dict)
+    is_supply_point = Column(Boolean, nullable=False, default=False)
+    is_water = Column(Boolean, nullable=False, default=False)
+    neighbors = Column(JSON, nullable=False, default=[])
 
 class Country(Base):
     __tablename__ = 'country'
