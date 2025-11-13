@@ -312,7 +312,7 @@ async def send_player_action(
 ):
 
     if user_data.match_id == UUID("3fa85f64-5717-4562-b3fc-2c963f66afa6"):
-        return STUB_MATCH_INFO_DETAILS
+        return STUB_RESPONSE_PLAYER
 
     game_match = check_input_player_match(db=db, match_uuid=str(user_data.match_id), user=user, need_player_join=True)
 
