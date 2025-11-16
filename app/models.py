@@ -56,7 +56,7 @@ class Units(Base):
     id = Column(Integer, primary_key=True)
     name = Column(TEXT)
     attack = Column(Integer)
-    hp = Column(Integer)
+    defence = Column(Integer)
     price = Column(Integer)
     movement_point = Column(Integer)
     need_water_neighbor_for_spawn = Column(Boolean, default=False)

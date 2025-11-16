@@ -39,18 +39,9 @@ class UnitInfo(BaseModel):
     country_owner: int
     current_state: int
 
-class MatchInfo(BaseModel):
-    match_id: UUID
-    map: str
-    owner: UUID
-    status: str # await_players | prepare | in_game | closed
-    current_year: int
-    current_month: int
-    players: dict[UUID, PlayerInfo] | None = None
-
 class DetailsMatchInfo(BaseModel):
     match_id: UUID
-    game_code: str
+    game_code: str | None = None
     map: str
     owner: UUID
     status: str
@@ -192,11 +183,13 @@ async def leave_from_match(data: NeedMatchIDRequest, user: User = Depends(get_us
         db.rollback()
         return PlayerActionResponse(status=False, message='Failed to exit', error=str(e))
 
-@router.post("/get_info", response_model=MatchInfo, responses={404: {"model": PlayerActionResponse}})
+@router.post("/get_info", response_model=DetailsMatchInfo, responses={404: {"model": PlayerActionResponse}})
 async def get_match_info(data: NeedMatchIDRequest, user: User = Depends(get_user_by_token), db: Session = Depends(get_db)):
 
-    if data.match_id == "3fa85f64-5717-4562-b3fc-2c963f66afa6":
+    if data.match_id == UUID("3fa85f64-5717-4562-b3fc-2c963f66afa6"):
         return STUB_MATCH_INFO
+
+    print(data.match_id)
 
     game_match = check_input_player_match(db=db, match_uuid=str(data.match_id), user=user, need_player_join=False)
 
@@ -220,7 +213,7 @@ async def get_match_info(data: NeedMatchIDRequest, user: User = Depends(get_user
                 country=country_id or None
             )
 
-    return MatchInfo(
+    return DetailsMatchInfo(
         match_id=UUID(game_match.uuid),
         map=map_obj.name,
         owner=UUID(game_match.owner),
@@ -369,7 +362,7 @@ STUB_RESPONSE_PLAYER = PlayerActionResponse(
     error=None
 )
 
-STUB_MATCH_INFO = MatchInfo(
+STUB_MATCH_INFO = DetailsMatchInfo(
     map="default_map",
     match_id=UUID("00000000-0000-0000-0000-000000000001"),
     owner=UUID("b04c1701-30cf-4791-ad5d-b9fa2c92205b"),
