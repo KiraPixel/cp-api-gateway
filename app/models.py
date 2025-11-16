@@ -55,13 +55,11 @@ class Units(Base):
     __tablename__ = 'units'
     id = Column(Integer, primary_key=True)
     name = Column(TEXT)
+    type = Column(TEXT)
     attack = Column(Integer)
     defence = Column(Integer)
     price = Column(Integer)
     movement_point = Column(Integer)
-    need_water_neighbor_for_spawn = Column(Boolean, default=False)
-    is_air_unit = Column(Boolean, default=False)
-    is_water_unit = Column(Boolean, default=False)
 
 
 class GameMatches(Base):

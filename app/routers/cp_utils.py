@@ -40,13 +40,11 @@ class StatesResponse(BaseModel):
 class UnitObj(BaseModel):
     id: int
     name: str | None=None
+    type: str | None=None
     attack: int | None=None
     defence: int | None=None
     price: int | None=None
     movement_point: int | None=None
-    need_water_neighbor_for_spawn: bool | None=None
-    is_air_unit: bool | None=None
-    is_water_unit: bool | None=None
 
     class Config:
         from_attributes = True
