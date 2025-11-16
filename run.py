@@ -4,7 +4,7 @@ from alembic import command
 from alembic.config import Config
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
-from app.config import SQLALCHEMY_DATABASE_URL
+from app.config import SQLALCHEMY_DATABASE_URL, HOST, PORT
 from app.models import Base
 from sqlalchemy import create_engine
 
@@ -35,4 +35,4 @@ if __name__ == "__main__":
         sys.exit(1)
 
     print("Запускаю сервер...")
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8082, reload=True)
+    uvicorn.run("app.main:app", host=HOST, port=PORT, reload=True)
