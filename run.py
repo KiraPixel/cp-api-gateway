@@ -35,4 +35,4 @@ if __name__ == "__main__":
         sys.exit(1)
 
     print("Запускаю сервер...")
-    uvicorn.run("app.main:app", host=HOST, port=PORT, reload=True)
+    uvicorn.run("app.main:app", host=HOST, port=int(PORT), reload=True)
